@@ -10,7 +10,7 @@ class PCRPlannerApp:
         self.root = root
         self.root.title("PCR Planner")
         
-        self.samples = pd.DataFrame(np.full((8, 12), ''), columns=[f'Col{i+1}' for i in range(12)], index=[f'Row{chr(65+i)}' for i in range(8)])
+        self.samples = pd.DataFrame(np.full((8, 12), ""), columns=[f"Col{i+1}" for i in range(12)], index=[f"Row{chr(65+i)}" for i in range(8)])
         
         self.create_widgets()
     
@@ -34,7 +34,7 @@ class PCRPlannerApp:
             self.plate_frame.grid_rowconfigure(row, weight=1)
             for col in range(12):
                 self.plate_frame.grid_columnconfigure(col, weight=1)
-                button = tk.Button(self.plate_frame, text='', command=lambda r=row, c=col: self.edit_sample(r, c))
+                button = tk.Button(self.plate_frame, text="", command=lambda r=row, c=col: self.edit_sample(r, c))
                 button.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
                 self.plate_buttons[(row, col)] = button
 
@@ -57,14 +57,14 @@ class PCRPlannerApp:
 
         # Treeview
         self.tree = ttk.Treeview(side_panel, columns=("pos", "sample", "primers"), show='headings')
-        self.tree.heading('pos', text='Position')
-        self.tree.heading('sample', text='Sample')
-        self.tree.heading('primers', text='Primers')
+        self.tree.heading("pos", text="Position")
+        self.tree.heading("sample", text="Sample")
+        self.tree.heading("primers", text="Primers")
         
         # Adjust column widths
-        self.tree.column('pos', width=50)
-        self.tree.column('sample', width=100)
-        self.tree.column('primers', width=100)
+        self.tree.column("pos", width=50)
+        self.tree.column("sample", width=100)
+        self.tree.column("primers", width=100)
 
         self.tree.grid(row=2, column=0, sticky="nsew")
 
@@ -93,7 +93,7 @@ class PCRPlannerApp:
         for i in self.tree.get_children():
             self.tree.delete(i)
         
-        df_with_blanks = self.samples.fillna('')
+        df_with_blanks = self.samples.fillna("")
         for pos, row in df_with_blanks.iterrows():
             self.tree.insert("", "end", values=(pos, row["sample"], row["primers"]))
 
