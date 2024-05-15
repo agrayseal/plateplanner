@@ -1,6 +1,6 @@
 import tkinter as tk
-import tkinter.ttk as ttk
 from tkinter import filedialog, messagebox
+import tkinter.ttk as ttk
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np

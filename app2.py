@@ -1,26 +1,31 @@
 import numpy as np
 import pandas as pd
 import tkinter as tk
+from tkinter import filedialog, messagebox
 import tkinter.ttk as ttk
 
 # https://realpython.com/python-gui-tkinter/#building-your-first-python-gui-application-with-tkinter
 
 class InputWindow():
-    def __init__(self, parent, title=None):
+    def __init__(self, parent, data, pos):
         self.parent = parent
-        self.root = tk.Toplevel(parent)
+        self.data = data
+        self.pos = pos
 
-        if title: self.root.title(title)
+        self.root = tk.Toplevel(parent)
+        self.root.title(f"Edit {pos}")
 
         self.create_widgets()
 
     def create_widgets(self):
         tk.Label(self.root, text="Sample").grid(row=0, column=0)
         self.sample_entry = tk.Entry(self.root)
+        self.sample_entry.insert(tk.END, self.data.loc[self.pos]["sample"])
         self.sample_entry.grid(row=0, column=1)
         
         tk.Label(self.root, text="Primers").grid(row=1, column=0)
         self.primers_entry = tk.Entry(self.root)
+        self.primers_entry.insert(tk.END, self.data.loc[self.pos]["primers"])
         self.primers_entry.grid(row=1, column=1)
 
         self.ok_button = tk.Button(self.root, text="OK", command=self.ok)
@@ -42,7 +47,7 @@ class PlatePlannerApp:
 
         row = [chr(65+i) for i in range(8)] * 12
         col = np.repeat(range(1, 13), 8)
-        self.samples = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=[f"{r}{c}" for r, c in zip(row, col)])
+        self.df = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=[f"{r}{c}" for r, c in zip(row, col)])
 
         self.create_widgets()
 
@@ -59,18 +64,9 @@ class PlatePlannerApp:
         tk.Label(panel1, text="Plate layout").pack()
         tk.Label(panel2, text="testing2").pack()
     
-        # main_frame = tk.Frame(self.window, bg="red")
-        
-        # # Table format
-        # side_frame = tk.Frame(self.window, bg="blue")
-        
-        # main_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
-        # side_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
-
         ## Plate widget
         plate_frame = tk.Frame(panel1)
         plate_frame.pack(fill=tk.BOTH, expand=True)
-        # main_frame.add(plate_widget)
         
         self.plate_buttons = {}
         for row in range(8):
@@ -79,26 +75,74 @@ class PlatePlannerApp:
                 plate_frame.columnconfigure(col, weight=1)
                 button = tk.Button(plate_frame, text="", width=10, height=10,
                                    command=lambda r=row, c=col: self.edit_sample(r, c))
-                button.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
+                button.grid(row=row, column=col, padx=1, pady=1, sticky="nesw")
                 self.plate_buttons[(row, col)] = button
-        # print(self.plate_buttons)
+
+        ## Table widget
+        # Load and save file
+        tk.Button(panel2, text="Load CSV", command=self.load_csv).pack()
+        tk.Button(panel2, text="Save CSV").pack()
+
+        # Table display
+        table_frame = tk.Frame(panel2)
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        canvas = tk.Canvas(table_frame)
+        scrollbar = tk.Scrollbar(table_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollbar.pack(fill=tk.Y, side=tk.RIGHT)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(fill=tk.BOTH, expand=True)
+        
+        # table_grid = tk.Frame(canvas, bg="green")
+        cols = ("pos", "sample", "primers")
+        self.table = ttk.Treeview(canvas, columns=cols, show="headings")
+        for i in cols:
+            self.table.column(i, width=50)
+            self.table.heading(i, text=i)
+        
+        self.table.pack(fill=tk.BOTH, expand=True)
+        self.update_table()
 
     def edit_sample(self, row, col):
         pos = f"{chr(65+row)}{col+1}"
-        dialog = InputWindow(self.root, title=f"Edit {pos}")
+        dialog = InputWindow(self.root, data=self.df, pos=pos)
         dialog.parent.wait_window(dialog.root)
         result = dialog.result
 
         if result is not None:
-            self.samples.loc[pos, "sample"] = result[0]
-            self.samples.loc[pos, "primers"] = result[1]
+            self.df.loc[pos, "sample"] = result[0]
+            self.df.loc[pos, "primers"] = result[1]
             self.update_plate()
+            self.update_table()
 
     def update_plate(self):
         for (row, col), button in self.plate_buttons.items():
             pos = f"{chr(65+row)}{col+1}"
-            sample = self.samples.loc[pos, "sample"]
+            sample = self.df.loc[pos, "sample"]
             button.config(text=sample, font=("Helvetica", 10))
+
+    def update_table(self):
+        for i in self.table.get_children():
+            self.table.delete(i)
+
+        for pos, row in self.df.iterrows():
+            self.table.insert("", "end", values=(pos, row["sample"], row["primers"]))
+
+    def load_csv(self):
+        file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+        self.root.focus_force()
+        if file_path:
+            try:
+                df = pd.read_csv(file_path, dtype=str, keep_default_na=False)
+                if "pos" not in df.columns:
+                    df["pos"] = df["row"].astype(str) + df["col"].astype(str)
+                df.set_index("pos", inplace=True)
+
+                self.df = df
+                self.update_plate()
+                self.update_table()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load CSV file: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
