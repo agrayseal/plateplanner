@@ -16,17 +16,15 @@ class PCRPlannerApp:
     
     def create_widgets(self):
         # Main frame
-        main_frame = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=5)
+        main_frame = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=3)
         main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # # Configure grid layout
+
         # main_frame.grid_columnconfigure(0, weight=2)
         # main_frame.grid_columnconfigure(1, weight=4)
         # main_frame.grid_rowconfigure(0, weight=1)
 
         # Plate Map
         self.plate_frame = tk.Frame(main_frame)
-        # self.plate_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         main_frame.add(self.plate_frame)
 
         self.plate_buttons = {}
@@ -34,13 +32,13 @@ class PCRPlannerApp:
             self.plate_frame.grid_rowconfigure(row, weight=1)
             for col in range(12):
                 self.plate_frame.grid_columnconfigure(col, weight=1)
-                button = tk.Button(self.plate_frame, text="", command=lambda r=row, c=col: self.edit_sample(r, c))
+                button = tk.Button(self.plate_frame, text="", width=10, height=10,
+                                   command=lambda r=row, c=col: self.edit_sample(r, c))
                 button.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
                 self.plate_buttons[(row, col)] = button
 
         # Side panel
         side_panel = tk.Frame(main_frame)
-        # side_panel.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         main_frame.add(side_panel)
 
         # Configure side panel grid
@@ -55,7 +53,7 @@ class PCRPlannerApp:
         save_button = tk.Button(side_panel, text="Save CSV", command=self.save_csv)
         save_button.grid(row=1, column=0, sticky="ew", pady=5)
 
-        # Treeview
+        # Table view
         self.tree = ttk.Treeview(side_panel, columns=("pos", "sample", "primers"), show='headings')
         self.tree.heading("pos", text="Position")
         self.tree.heading("sample", text="Sample")
@@ -63,8 +61,8 @@ class PCRPlannerApp:
         
         # Adjust column widths
         self.tree.column("pos", width=50)
-        self.tree.column("sample", width=100)
-        self.tree.column("primers", width=100)
+        self.tree.column("sample", width=50)
+        self.tree.column("primers", width=50)
 
         self.tree.grid(row=2, column=0, sticky="nsew")
 
@@ -84,8 +82,11 @@ class PCRPlannerApp:
     def edit_sample(self, row, col):
         pos = f"{chr(65+row)}{col+1}"
         sample_name = tk.simpledialog.askstring("Input", f"Enter sample name for position {pos}:")
-        if sample_name is not None:
+        primer_name = tk.simpledialog.askstring("Input", f"Enter primers for position {pos}:")
+
+        if sample_name is not None and primer_name is not None:
             self.samples.loc[pos, "sample"] = sample_name
+            self.samples.loc[pos, "primers"] = primer_name
             self.update_plate()
             self.update_treeview()
         
@@ -101,7 +102,7 @@ class PCRPlannerApp:
         for (row, col), button in self.plate_buttons.items():
             pos = f"{chr(65+row)}{col+1}"
             sample = self.samples.loc[pos, "sample"]
-            button.config(text=sample, font=('Helvetica', 10))  # Adjust font size as needed
+            button.config(text=sample, font=("Helvetica", 10))  # Adjust font size as needed
     
     def load_csv(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
