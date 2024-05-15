@@ -1,8 +1,11 @@
+import matplotlib.pyplot as plt
+from matplotlib.colors import to_hex
 import numpy as np
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import tkinter.ttk as ttk
+from tkmacosx import Button
 
 # https://realpython.com/python-gui-tkinter/#building-your-first-python-gui-application-with-tkinter
 
@@ -73,7 +76,7 @@ class PlatePlannerApp:
             plate_frame.rowconfigure(row, weight=1)
             for col in range(12):
                 plate_frame.columnconfigure(col, weight=1)
-                button = tk.Button(plate_frame, text="", width=10, height=10,
+                button = Button(plate_frame, text="", width=10, height=10,
                                    command=lambda r=row, c=col: self.edit_sample(r, c))
                 button.grid(row=row, column=col, padx=1, pady=1, sticky="nesw")
                 self.plate_buttons[(row, col)] = button
@@ -81,7 +84,7 @@ class PlatePlannerApp:
         ## Table widget
         # Load and save file
         tk.Button(panel2, text="Load CSV", command=self.load_csv).pack()
-        tk.Button(panel2, text="Save CSV").pack()
+        tk.Button(panel2, text="Save CSV", command=self.save_csv).pack()
 
         # Table display
         table_frame = tk.Frame(panel2)
@@ -115,11 +118,23 @@ class PlatePlannerApp:
             self.update_plate()
             self.update_table()
 
+    def get_colour_map(self):
+        primers = self.df["primers"].unique()
+        primers = [i for i in primers if i]
+        cmap = plt.get_cmap("tab20", len(primers))
+        colour_map = {primer: to_hex(cmap(i)) for i, primer in enumerate(primers)}
+        return colour_map
+
     def update_plate(self):
+        colour_map = self.get_colour_map()
+        # print(colour_map)
         for (row, col), button in self.plate_buttons.items():
             pos = f"{chr(65+row)}{col+1}"
             sample = self.df.loc[pos, "sample"]
-            button.config(text=sample, font=("Helvetica", 10))
+            primers = self.df.loc[pos, "primers"]
+
+            colour = colour_map.get(primers, "white")
+            button.config(text=sample, font=("Helvetica", 10), highlightbackground=colour)
 
     def update_table(self):
         for i in self.table.get_children():
@@ -143,6 +158,12 @@ class PlatePlannerApp:
                 self.update_table()
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load CSV file: {e}")
+
+    def save_csv(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+        if file_path:
+            self.df.to_csv(file_path)
+            messagebox.showinfo("Save CSV", f"CSV saved to {file_path}")
 
 if __name__ == "__main__":
     root = tk.Tk()
