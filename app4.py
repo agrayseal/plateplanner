@@ -9,21 +9,59 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtCore import Qt, QTimer
 
-class EditDialog(QDialog):
-    def __init__(self, sample, primers):
+class BulkEditDialog(QDialog):
+    def __init__(self, data, positions):
         super().__init__()
-        self.sample = QLineEdit(sample)
-        self.primers = QLineEdit(primers)
+        self.setWindowTitle("Edit Multiple Wells")
+        samples = {data.loc[pos, "sample"] for pos in positions if pos in data.index}
+        primers = {data.loc[pos, "primers"] for pos in positions if pos in data.index}
+
+        layout = QGridLayout()
+        layout.setColumnStretch(0, 3)
+        layout.setColumnStretch(0, 7)
+        
+        self.sample_label = QLabel("Sample:")
+        self.sample = QLineEdit("" if len(samples) > 1 else samples.pop())
+        self.primers_label = QLabel("Primers:")
+        self.primers = QLineEdit("" if len(primers) > 1 else primers.pop())
+        layout.addWidget(self.sample_label, 0, 0)
+        layout.addWidget(self.sample, 0, 1)
+        layout.addWidget(self.primers_label, 1, 0)
+        layout.addWidget(self.primers, 1, 1)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-
-        layout = QVBoxLayout()
-        layout.addWidget(self.sample)
-        layout.addWidget(self.primers)
-        layout.addWidget(self.button_box)
+        layout.addWidget(self.button_box, 2, 0, 1, 2)
+        
         self.setLayout(layout)
+
+    def get_data(self):
+        return self.sample.text(), self.primers.text()
+
+class SingleEditDialog(QDialog):
+    def __init__(self, sample, primers):
+        super().__init__()
+        layout = QGridLayout()
+        layout.setColumnStretch(0, 3)
+        layout.setColumnStretch(0, 7)
+        
+        self.sample_label = QLabel("Sample:")
+        self.sample = QLineEdit(sample)
+        self.primers_label = QLabel("Primers:")
+        self.primers = QLineEdit(primers)
+        layout.addWidget(self.sample_label, 0, 0)
+        layout.addWidget(self.sample, 0, 1)
+        layout.addWidget(self.primers_label, 1, 0)
+        layout.addWidget(self.primers, 1, 1)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box, 2, 0, 1, 2)
+
+        self.setLayout(layout)
+        self.sample.setFocus()
 
     def get_data(self):
         return self.sample.text(), self.primers.text()
@@ -86,13 +124,18 @@ class MainWindow(QWidget):
         
         self.well_buttons = {}
         self.init_plate_map()
+        self.selected_cells = []
 
+        ## Shortcuts
         # Shortcut for closing window
-        self.close_kb = QShortcut(QKeySequence("Ctrl+W"), self)
-        self.close_kb.activated.connect(self.close)
+        close_kb = QShortcut(QKeySequence("Ctrl+W"), self)
+        close_kb.activated.connect(self.close)
+        deselect_kb = QShortcut(QKeySequence("Ctrl+A"), self)
+        deselect_kb.activated.connect(self.deselect_all)
 
-        self.selected_first = None
-        self.selected_second = None
+    def set_sel_mode(self):
+        self.sel_mode_idx = (self.sel_mode_idx+1) % len(self.sel_modes)
+        self.sel_mode = self.sel_modes[self.sel_mode_idx]
 
     def update_table(self):
         self.table_widget.setRowCount(0) # Clear existing rows
@@ -128,6 +171,11 @@ class MainWindow(QWidget):
                 QMessageBox.critical(self, "Error", f"Failed to load CSV file: {e}")
 
     def init_plate_map(self):
+        # Default button style sheet
+        self.button_style = {
+            "default": "font-size: 12pt;",
+            "highlight": "font-size: 12pt; border: 2px solid grey;"
+        }
         # Assuming 8 rows and 12 columns for a 96-well plate
         rows = ["A", "B", "C", "D", "E", "F", "G", "H"]
         cols = range(1, 13)
@@ -143,46 +191,91 @@ class MainWindow(QWidget):
             for j, col in enumerate(cols):
                 pos = f"{row}{col}"
                 button = QPushButton(self.data.loc[pos, "sample"])
-                button.setStyleSheet("font-size: 8pt;")  # Font scales with CSS
+                button.setStyleSheet(self.button_style["default"]) # font scales with CSS
                 button.setMinimumSize(10, 10) # needed to let plate shrink
                 button.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
-                button.clicked.connect(lambda ch, p=pos: self.edit_well(p))
+                button.clicked.connect(lambda ch, p=pos: self.select_well(p))
                 self.left_layout.addWidget(button, i+1, j+1)
                 self.well_buttons[pos] = button
 
-    # def resizeEvent(self, event):
-    #     print(f"Resize event: New size = {event.size().width()}x{event.size().height()}")
-    #     super().resizeEvent(event)
+    def select_well(self, pos):
+        # Bulk selection with control
+        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+            if pos in self.selected_cells:
+                self.selected_cells.remove(pos)
+                self.well_buttons[pos].setStyleSheet(self.button_style["default"])
+            else:
+                self.selected_cells.append(pos)
+                self.well_buttons[pos].setStyleSheet(self.button_style["highlight"])
+                # self.highlight_cell(pos)
+        # Single cell selection
+        else:
+            if len(self.selected_cells) > 1 and pos in self.selected_cells:
+                self.bulk_edit_wells()
+            else:
+                self.edit_well(pos)
+
+    def deselect_all(self):
+        print(f"selected_cells: {self.selected_cells}")
+        print(len(self.selected_cells))
+        for pos in self.selected_cells:
+            print(pos)
+            self.selected_cells.remove(pos)
+            self.well_buttons[pos].setStyleSheet(self.button_style["default"])
 
     def edit_well(self, pos):
-        if QApplication.keyboardModifiers() == Qt.ControlModifier:
-            # Handle cell selection for swapping
-            if not self.selected_first:
-                self.selected_first = pos
-                self.well_buttons[pos].setStyleSheet("border: 2px solid grey")  # Highlight the selected cell
-            elif not self.selected_second and self.selected_first != pos:
-                self.selected_second = pos
-                self.highlight_cell(pos)
-                self.swap_cells(self.selected_first, self.selected_second)
-                self.well_buttons[self.selected_first].setStyleSheet("")  # Remove highlight
-                self.selected_first = None
-                self.selected_second = None
-        else:
-            print(self.data.loc[pos])
-            sample, primers = self.data.loc[pos][["sample", "primers"]]
-            dialog = EditDialog(sample, primers)
-            if dialog.exec():
-                new_sample, new_primers = dialog.get_data()
-                self.data.loc[pos, "sample"] = new_sample
-                self.data.loc[pos, "primers"] = new_primers
-                self.well_buttons[pos].setText(new_sample)
-                self.well_buttons[pos].setStyleSheet("font-size: 8pt;")
+        sample, primers = self.data.loc[pos][["sample", "primers"]]
+        dialog = SingleEditDialog(sample, primers)
+        if dialog.exec():
+            new_sample, new_primers = dialog.get_data()
+            self.data.loc[pos, "sample"] = new_sample
+            self.data.loc[pos, "primers"] = new_primers
+            self.well_buttons[pos].setText(new_sample)
+            
+            self.update_table()
+
+    def bulk_edit_wells(self):
+        dialog = BulkEditDialog(self.data, self.selected_cells)
+        if dialog.exec():
+            new_sample, new_primers = dialog.get_data()
+            for pos in self.selected_cells:
+                if new_sample:  # Only update if a new value is provided
+                    self.data.loc[pos, "sample"] = new_sample
+                    self.well_buttons[pos].setText(new_sample)
+                if new_primers:
+                    self.data.loc[pos, "primers"] = new_primers
+            self.update_table()
+            for pos in self.selected_cells:  # Clear selections after editing
+                self.well_buttons[pos].setStyleSheet(self.button_style["default"])
+            self.selected_cells.clear()
+
+        # if QApplication.keyboardModifiers() == Qt.ControlModifier:
+        #     # Handle cell selection for swapping
+        #     if not self.selected_first:
+        #         self.selected_first = pos
+        #         self.well_buttons[pos].setStyleSheet(" ".join([*self.button_style, "border: 2px solid grey;"])) # Highlight the selected cell
+        #     elif not self.selected_second and self.selected_first != pos:
+        #         self.selected_second = pos
+        #         self.highlight_cell(pos)
+        #         self.swap_cells(self.selected_first, self.selected_second)
+        #         self.well_buttons[self.selected_first].setStyleSheet(" ".join(self.button_style)) # Remove highlight
+        #         self.selected_first = None
+        #         self.selected_second = None
+        # else:
+        #     print(self.data.loc[pos])
+        #     sample, primers = self.data.loc[pos][["sample", "primers"]]
+        #     dialog = EditDialog(sample, primers)
+        #     if dialog.exec():
+        #         new_sample, new_primers = dialog.get_data()
+        #         self.data.loc[pos, "sample"] = new_sample
+        #         self.data.loc[pos, "primers"] = new_primers
+        #         self.well_buttons[pos].setText(new_sample)
                 
-                self.update_table()
+        #         self.update_table()
 
     def highlight_cell(self, pos):
-        self.well_buttons[pos].setStyleSheet("border: 2px solid grey;")
-        QTimer.singleShot(500, lambda: self.well_buttons[pos].setStyleSheet(""))
+        self.well_buttons[pos].setStyleSheet(self.button_style["highlight"])
+        QTimer.singleShot(200, lambda: self.well_buttons[pos].setStyleSheet(self.button_style["default"]))
 
     def swap_cells(self, pos1, pos2):
         # Update data and table
