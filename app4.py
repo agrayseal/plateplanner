@@ -28,21 +28,6 @@ class EditDialog(QDialog):
     def get_data(self):
         return self.sample.text(), self.primers.text()
 
-# class ScalableButton(QPushButton):
-#     def __init__(self, text, parent=None):
-#         super().__init__(text, parent)
-
-#     def resizeEvent(self, event):
-#         super().resizeEvent(event)
-#         font = self.font()
-#         font.setPointSize(max(4, int(self.height()*0.2)))
-#         self.setFont(font)
-
-# class ScalableLabel(QLabel):
-#     def __init__(self, text, parent=None):
-#         super().__init__(text, parent)
-#         self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
-
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -52,12 +37,8 @@ class MainWindow(QWidget):
 
         # Create a vertical splitter with two panels
         self.divider = QSplitter(Qt.Horizontal, self)
-        
-        # Create left and right panels as QWidget or any other derived class
         self.left_panel = QWidget(self.divider)
         self.right_panel = QWidget(self.divider)
-        
-        # Set the initial size of the panels
         self.divider.setSizes([w*2/3, w*1/3])
 
         # Right panel layout
@@ -90,9 +71,19 @@ class MainWindow(QWidget):
         layout.addWidget(self.divider)
         self.setLayout(layout)
 
-        # Plate map
+        # Plate map / grid / right panel
         self.left_layout = QGridLayout(self.left_panel)
-        self.left_layout.setSpacing(1)
+        self.left_layout.setSpacing(10)
+        # Number of rows and columns
+        num_rows = 1 + 8
+        num_cols = 1 + 12
+
+        # Set equal stretch to all rows and columns
+        for i in range(num_rows):
+            self.left_layout.setRowStretch(i, 1)
+        for j in range(num_cols):
+            self.left_layout.setColumnStretch(j, 1)
+        
         self.well_buttons = {}
         self.init_plate_map()
 
@@ -129,7 +120,7 @@ class MainWindow(QWidget):
                 if "pos" not in df.columns:
                     df["pos"] = df["row"].astype(str) + df["col"].astype(str)
                 df.set_index("pos", inplace=True)
-                print(df)
+                # print(df)
                 self.data = df
                 self.update_plate()
                 self.update_table()
@@ -140,15 +131,15 @@ class MainWindow(QWidget):
         # Assuming 8 rows and 12 columns for a 96-well plate
         rows = ["A", "B", "C", "D", "E", "F", "G", "H"]
         cols = range(1, 13)
-        # self.left_layout.addWidget(ScalableLabel(""), 0, 0)  # Top-left empty corner
-        # for j, col in enumerate(cols):
-        #     # col_label = QLabel(str(col))
-        #     # col_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
-        #     # self.left_layout.addWidget(ScalableLabel(str(col)), 0, j+1)
+        self.left_layout.addWidget(QLabel(""), 0, 0)  # Top-left empty corner
+        for j, col in enumerate(cols):
+            col_label = QLabel(str(col))
+            col_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
+            self.left_layout.addWidget(col_label, 0, j+1)
         for i, row in enumerate(rows):
-            # row_label = QLabel(row)
-            # row_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
-            # self.left_layout.addWidget(ScalableLabel(row), i+1, 0)
+            row_label = QLabel(row)
+            row_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
+            self.left_layout.addWidget(row_label, i+1, 0)
             for j, col in enumerate(cols):
                 pos = f"{row}{col}"
                 button = QPushButton(self.data.loc[pos, "sample"])
@@ -158,6 +149,10 @@ class MainWindow(QWidget):
                 button.clicked.connect(lambda ch, p=pos: self.edit_well(p))
                 self.left_layout.addWidget(button, i+1, j+1)
                 self.well_buttons[pos] = button
+
+    # def resizeEvent(self, event):
+    #     print(f"Resize event: New size = {event.size().width()}x{event.size().height()}")
+    #     super().resizeEvent(event)
 
     def edit_well(self, pos):
         if QApplication.keyboardModifiers() == Qt.ControlModifier:
@@ -181,23 +176,22 @@ class MainWindow(QWidget):
                 self.data.loc[pos, "sample"] = new_sample
                 self.data.loc[pos, "primers"] = new_primers
                 self.well_buttons[pos].setText(new_sample)
+                self.well_buttons[pos].setStyleSheet("font-size: 8pt;")
                 
                 self.update_table()
 
     def highlight_cell(self, pos):
         self.well_buttons[pos].setStyleSheet("border: 2px solid grey;")
-        QTimer.singleShot(1000, lambda: self.well_buttons[pos].setStyleSheet(""))
+        QTimer.singleShot(500, lambda: self.well_buttons[pos].setStyleSheet(""))
 
     def swap_cells(self, pos1, pos2):
-        # Swap data in DataFrame
+        # Update data and table
         self.data.loc[[pos1, pos2], ["sample", "primers"]] = self.data.loc[[pos2, pos1], ["sample", "primers"]].values
+        self.update_table()
 
         # Update buttons
         self.well_buttons[pos1].setText(self.data.loc[pos1, "sample"])
         self.well_buttons[pos2].setText(self.data.loc[pos2, "sample"])
-
-        # Refresh the table as well
-        self.update_table()
 
 if __name__ == "__main__":
     app = QApplication([])
