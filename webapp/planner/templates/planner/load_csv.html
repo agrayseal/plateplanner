@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Load CSV</title>
+</head>
+<body>
+    <h1>Load CSV</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="file" accept=".csv">
+        <button type="submit">Load</button>
+    </form>
+    <a href="{% url 'index' %}">Back to Plate Planner</a>
+</body>
+</html>

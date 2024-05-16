@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Plate {{ plate.pos }}</title>
+</head>
+<body>
+    <h1>Edit Plate {{ plate.pos }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save</button>
+    </form>
+    <a href="{% url 'index' %}">Back to Plate Planner</a>
+</body>
+</html>

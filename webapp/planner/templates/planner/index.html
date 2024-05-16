@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plate Planner</title>
+</head>
+<body>
+    <h1>Plate Planner</h1>
+    <a href="{% url 'load_csv' %}">Load CSV</a>
+    <a href="{% url 'save_csv' %}">Save CSV</a>
+    <table>
+        <tr>
+            <th>Position</th>
+            <th>Sample</th>
+            <th>Primers</th>
+            <th>Edit</th>
+        </tr>
+        {% for plate in plates %}
+        <tr>
+            <td>{{ plate.pos }}</td>
+            <td>{{ plate.sample }}</td>
+            <td>{{ plate.primers }}</td>
+            <td><a href="{% url 'edit_plate' plate.pos %}">Edit</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

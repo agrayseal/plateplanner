@@ -50,7 +50,8 @@ class PlatePlannerApp:
 
         row = [chr(65+i) for i in range(8)] * 12
         col = np.repeat(range(1, 13), 8)
-        self.df = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=[f"{r}{c}" for r, c in zip(row, col)])
+        self.data = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=[f"{r}{c}" for r, c in zip(row, col)])
+        self.selected_cells = set()
 
         self.create_widgets()
 
@@ -108,18 +109,18 @@ class PlatePlannerApp:
 
     def edit_sample(self, row, col):
         pos = f"{chr(65+row)}{col+1}"
-        dialog = InputWindow(self.root, data=self.df, pos=pos)
+        dialog = InputWindow(self.root, data=self.data, pos=pos)
         dialog.parent.wait_window(dialog.root)
         result = dialog.result
 
         if result is not None:
-            self.df.loc[pos, "sample"] = result[0]
-            self.df.loc[pos, "primers"] = result[1]
+            self.data.loc[pos, "sample"] = result[0]
+            self.data.loc[pos, "primers"] = result[1]
             self.update_plate()
             self.update_table()
 
     def get_colour_map(self):
-        primers = self.df["primers"].unique()
+        primers = self.data["primers"].unique()
         primers = [i for i in primers if i]
         cmap = plt.get_cmap("tab20", len(primers))
         colour_map = {primer: to_hex(cmap(i)) for i, primer in enumerate(primers)}
@@ -130,8 +131,8 @@ class PlatePlannerApp:
         # print(colour_map)
         for (row, col), button in self.plate_buttons.items():
             pos = f"{chr(65+row)}{col+1}"
-            sample = self.df.loc[pos, "sample"]
-            primers = self.df.loc[pos, "primers"]
+            sample = self.data.loc[pos, "sample"]
+            primers = self.data.loc[pos, "primers"]
 
             colour = colour_map.get(primers, "white")
             button.config(text=sample, font=("Helvetica", 10), highlightbackground=colour)
@@ -140,7 +141,7 @@ class PlatePlannerApp:
         for i in self.table.get_children():
             self.table.delete(i)
 
-        for pos, row in self.df.iterrows():
+        for pos, row in self.data.iterrows():
             self.table.insert("", "end", values=(pos, row["sample"], row["primers"]))
 
     def load_csv(self):
@@ -153,7 +154,7 @@ class PlatePlannerApp:
                     df["pos"] = df["row"].astype(str) + df["col"].astype(str)
                 df.set_index("pos", inplace=True)
 
-                self.df = df
+                self.data = df
                 self.update_plate()
                 self.update_table()
             except Exception as e:
@@ -162,7 +163,7 @@ class PlatePlannerApp:
     def save_csv(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
         if file_path:
-            self.df.to_csv(file_path)
+            self.data.to_csv(file_path)
             messagebox.showinfo("Save CSV", f"CSV saved to {file_path}")
 
 if __name__ == "__main__":
