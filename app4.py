@@ -87,6 +87,11 @@ class MainWindow(QWidget):
         self.load_button.clicked.connect(self.load_data)
         self.right_layout.addWidget(self.load_button)
 
+        # Button to save CSV
+        self.save_button = QPushButton("Save CSV", self.right_panel)
+        self.save_button.clicked.connect(self.save_data)
+        self.right_layout.addWidget(self.save_button)
+
         # Initialise dataframe
         row = [chr(65+i) for i in range(8)] * 12
         col = np.repeat(range(1, 13), 8)
@@ -162,6 +167,7 @@ class MainWindow(QWidget):
                 df = pd.read_csv(file_path, dtype=str, keep_default_na=False)
                 if "pos" not in df.columns:
                     df["pos"] = df["row"].astype(str) + df["col"].astype(str)
+                df = df[["pos", "sample", "primers"]]
                 df.set_index("pos", inplace=True)
                 # print(df)
                 self.data = df
@@ -169,6 +175,15 @@ class MainWindow(QWidget):
                 self.update_table()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load CSV file: {e}")
+
+    def save_data(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save CSV File", "", "CSV Files (*.csv)")
+        if file_path:
+            try:
+                self.data.to_csv(file_path)
+                QMessageBox.information(self, "Success", f"Data successfully saved to {file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to save CSV file: {e}")
 
     def init_plate_map(self):
         # Default button style sheet
@@ -210,18 +225,55 @@ class MainWindow(QWidget):
                 # self.highlight_cell(pos)
         # Single cell selection
         else:
-            if len(self.selected_cells) > 1 and pos in self.selected_cells:
-                self.bulk_edit_wells()
+            if self.selected_cells and pos not in self.selected_cells:
+                self.move_selected_cells(pos)
             else:
                 self.edit_well(pos)
 
-    def deselect_all(self):
-        print(f"selected_cells: {self.selected_cells}")
-        print(len(self.selected_cells))
+    def move_selected_cells(self, target_pos):
+        if not self.selected_cells:
+            return
+        # Calculate the offset based on the first selected cell
+        first_selected = self.selected_cells[0]
+        target_row, target_col = self.get_row_col(target_pos)
+        first_row, first_col = self.get_row_col(first_selected)
+        row_offset = target_row - first_row
+        col_offset = target_col - first_col
+
+        new_positions = {}
         for pos in self.selected_cells:
-            print(pos)
-            self.selected_cells.remove(pos)
+            old_row, old_col = self.get_row_col(pos)
+            new_row = old_row + row_offset
+            new_col = old_col + col_offset
+            new_pos = f"{chr(65 + new_row)}{new_col + 1}"
+            new_positions[pos] = new_pos
+
+        self.apply_move(new_positions)
+
+    def get_row_col(self, pos):
+        row = ord(pos[0]) - 65
+        col = int(pos[1:]) - 1
+        return row, col
+
+    def apply_move(self, new_positions):
+        if len(new_positions) != len(self.selected_cells):
+            return
+        
+        for old_pos, new_pos in new_positions.items():
+            if self.data.loc[new_pos]["sample"] != "":
+                raise ValueError(f"Cannot move to {new_pos} because it is already occupied.")
+            # Move data from old_pos to new_pos
+            self.data.loc[new_pos] = self.data.loc[old_pos]
+            self.data.loc[old_pos] = {"sample": "", "primers": ""}
+
+        self.update_table()
+        self.update_plate()
+        self.deselect_all()
+
+    def deselect_all(self):
+        for pos in self.selected_cells:
             self.well_buttons[pos].setStyleSheet(self.button_style["default"])
+        self.selected_cells.clear()
 
     def edit_well(self, pos):
         sample, primers = self.data.loc[pos][["sample", "primers"]]
@@ -248,30 +300,6 @@ class MainWindow(QWidget):
             for pos in self.selected_cells:  # Clear selections after editing
                 self.well_buttons[pos].setStyleSheet(self.button_style["default"])
             self.selected_cells.clear()
-
-        # if QApplication.keyboardModifiers() == Qt.ControlModifier:
-        #     # Handle cell selection for swapping
-        #     if not self.selected_first:
-        #         self.selected_first = pos
-        #         self.well_buttons[pos].setStyleSheet(" ".join([*self.button_style, "border: 2px solid grey;"])) # Highlight the selected cell
-        #     elif not self.selected_second and self.selected_first != pos:
-        #         self.selected_second = pos
-        #         self.highlight_cell(pos)
-        #         self.swap_cells(self.selected_first, self.selected_second)
-        #         self.well_buttons[self.selected_first].setStyleSheet(" ".join(self.button_style)) # Remove highlight
-        #         self.selected_first = None
-        #         self.selected_second = None
-        # else:
-        #     print(self.data.loc[pos])
-        #     sample, primers = self.data.loc[pos][["sample", "primers"]]
-        #     dialog = EditDialog(sample, primers)
-        #     if dialog.exec():
-        #         new_sample, new_primers = dialog.get_data()
-        #         self.data.loc[pos, "sample"] = new_sample
-        #         self.data.loc[pos, "primers"] = new_primers
-        #         self.well_buttons[pos].setText(new_sample)
-                
-        #         self.update_table()
 
     def highlight_cell(self, pos):
         self.well_buttons[pos].setStyleSheet(self.button_style["highlight"])
