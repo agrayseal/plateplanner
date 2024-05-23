@@ -1,3 +1,4 @@
+# import matplotlib.colormaps as cmaps
 from matplotlib import cm
 from matplotlib.colors import to_hex
 import numpy as np
