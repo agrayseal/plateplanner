@@ -1,3 +1,5 @@
+from matplotlib import cm
+from matplotlib.colors import to_hex
 import numpy as np
 import pandas as pd
 from PySide6.QtWidgets import (
@@ -93,9 +95,10 @@ class MainWindow(QWidget):
         self.right_layout.addWidget(self.save_button)
 
         # Initialise dataframe
-        row = [chr(65+i) for i in range(8)] * 12
         col = np.repeat(range(1, 13), 8)
-        self.data = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=[f"{r}{c}" for r, c in zip(row, col)])
+        row = [chr(65+i) for i in range(8)] * 12
+        self.positions = pd.Index([f"{c}{r}" for r, c in zip(row, col)], name="pos")
+        self.data = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=self.positions)
 
         # Table widget
         self.table_widget = QTableWidget(self.right_panel)
@@ -154,11 +157,21 @@ class MainWindow(QWidget):
             self.table_widget.setItem(row_position, 2, QTableWidgetItem(row["primers"]))
 
     def update_plate(self):
+        unique_primers = self.data["primers"].unique()
+        colormap = cm.get_cmap('tab20', len(unique_primers))  # Using tab20 colormap
+        primer_to_color = {primer: to_hex(colormap(i)) for i, primer in enumerate(unique_primers)}
+
         for pos, button in self.well_buttons.items():
             if pos in self.data.index:
-                button.setText(self.data.loc[pos, "sample"])
+                # print(pos, button)
+                # button.setText(self.data.loc[pos, "sample"])
+                sample = self.data.loc[pos, "sample"]
+                primers = self.data.loc[pos, "primers"]
+                button.setText(sample)
+                button.setStyleSheet(f"{self.button_style['default']} background-color: {primer_to_color[primers]};")
             else:
                 button.setText("")
+                button.setStyleSheet(self.button_style["default"])
 
     def load_data(self, file_path):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open CSV File", "", "CSV Files (*.csv)")
@@ -166,11 +179,24 @@ class MainWindow(QWidget):
             try:
                 df = pd.read_csv(file_path, dtype=str, keep_default_na=False)
                 if "pos" not in df.columns:
-                    df["pos"] = df["row"].astype(str) + df["col"].astype(str)
+                    if "row" not in df.columns or "col" not in df.columns:
+                        # print(len(df))
+                        if len(df) > 96:
+                            df = df[:96]
+                        # print(len(df))
+                        df["pos"] = self.positions
+                        QMessageBox.critical(self, "Note", "No position information, generating.")
+                    else:
+                        df["pos"] = df["col"].astype(str) + df["row"].astype(str)
                 df = df[["pos", "sample", "primers"]]
                 df.set_index("pos", inplace=True)
                 # print(df)
-                self.data = df
+                # print(self.positions)
+                # print(df)
+                self.data = df.reindex(self.positions, fill_value="")
+                # blank_df = pd.DataFrame({"pos": self.positions})
+                # self.data = blank_df.set_index("pos").combine_first(df.set_index("pos"))
+
                 self.update_plate()
                 self.update_table()
             except Exception as e:
@@ -204,7 +230,7 @@ class MainWindow(QWidget):
             row_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
             self.left_layout.addWidget(row_label, i+1, 0)
             for j, col in enumerate(cols):
-                pos = f"{row}{col}"
+                pos = f"{col}{row}"
                 button = QPushButton(self.data.loc[pos, "sample"])
                 button.setStyleSheet(self.button_style["default"]) # font scales with CSS
                 button.setMinimumSize(10, 10) # needed to let plate shrink
@@ -212,6 +238,7 @@ class MainWindow(QWidget):
                 button.clicked.connect(lambda ch, p=pos: self.select_well(p))
                 self.left_layout.addWidget(button, i+1, j+1)
                 self.well_buttons[pos] = button
+        # print(self.well_buttons)
 
     def select_well(self, pos):
         # Bulk selection with control
