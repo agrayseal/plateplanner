@@ -221,6 +221,11 @@ class MainWindow(QWidget):
         rows = ["A", "B", "C", "D", "E", "F", "G", "H"]
         cols = range(1, 13)
         self.left_layout.addWidget(QLabel(""), 0, 0)  # Top-left empty corner
+
+        unique_primers = self.data["primers"].unique()
+        colormap = cm.get_cmap('tab20', len(unique_primers))
+        primer_to_color = {primer: to_hex(colormap(i)) for i, primer in enumerate(unique_primers)}
+
         for j, col in enumerate(cols):
             col_label = QLabel(str(col))
             col_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
@@ -231,14 +236,15 @@ class MainWindow(QWidget):
             self.left_layout.addWidget(row_label, i+1, 0)
             for j, col in enumerate(cols):
                 pos = f"{col}{row}"
-                button = QPushButton(self.data.loc[pos, "sample"])
-                button.setStyleSheet(self.button_style["default"]) # font scales with CSS
-                button.setMinimumSize(10, 10) # needed to let plate shrink
+                sample = self.data.loc[pos, "sample"]
+                primers = self.data.loc[pos, "primers"]
+                button = QPushButton(sample)
+                button.setStyleSheet(f"{self.button_style['default']} background-color: {primer_to_color[primers]};")
+                button.setMinimumSize(10, 10)  # needed to let plate shrink
                 button.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
                 button.clicked.connect(lambda ch, p=pos: self.select_well(p))
                 self.left_layout.addWidget(button, i+1, j+1)
                 self.well_buttons[pos] = button
-        # print(self.well_buttons)
 
     def select_well(self, pos):
         # Bulk selection with control
