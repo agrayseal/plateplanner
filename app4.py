@@ -96,9 +96,9 @@ class MainWindow(QWidget):
         self.right_layout.addWidget(self.save_button)
 
         # Initialise dataframe
-        col = np.repeat(range(1, 13), 8)
         row = [chr(65+i) for i in range(8)] * 12
-        self.positions = pd.Index([f"{c}{r}" for r, c in zip(row, col)], name="pos")
+        col = np.repeat(range(1, 13), 8)
+        self.positions = pd.Index([f"{r}{c}" for r, c in zip(row, col)], name="pos")
         self.data = pd.DataFrame(np.full((96, 2), ""), columns=["sample", "primers"], index=self.positions)
 
         # Table widget
@@ -158,9 +158,9 @@ class MainWindow(QWidget):
             self.table_widget.setItem(row_position, 2, QTableWidgetItem(row["primers"]))
 
     def update_plate(self):
-        unique_primers = self.data["primers"].unique()
-        colormap = cm.get_cmap('tab20', len(unique_primers))  # Using tab20 colormap
-        primer_to_color = {primer: to_hex(colormap(i)) for i, primer in enumerate(unique_primers)}
+        # unique_primers = self.data["primers"].unique()
+        # colormap = cm.get_cmap('tab20', len(unique_primers))  # Using tab20 colormap
+        # primer_to_color = {primer: to_hex(colormap(i)) for i, primer in enumerate(unique_primers)}
 
         for pos, button in self.well_buttons.items():
             if pos in self.data.index:
@@ -169,10 +169,10 @@ class MainWindow(QWidget):
                 sample = self.data.loc[pos, "sample"]
                 primers = self.data.loc[pos, "primers"]
                 button.setText(sample)
-                button.setStyleSheet(f"{self.button_style['default']} background-color: {primer_to_color[primers]};")
+                # button.setStyleSheet(f"{self.button_style['default']} background-color: {primer_to_color[primers]};")
             else:
                 button.setText("")
-                button.setStyleSheet(self.button_style["default"])
+                # button.setStyleSheet(self.button_style["default"])
 
     def load_data(self, file_path):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open CSV File", "", "CSV Files (*.csv)")
@@ -188,7 +188,7 @@ class MainWindow(QWidget):
                         df["pos"] = self.positions
                         QMessageBox.critical(self, "Note", "No position information, generating.")
                     else:
-                        df["pos"] = df["col"].astype(str) + df["row"].astype(str)
+                        df["pos"] = df["row"].astype(str) + df["col"].astype(str)
                 df = df[["pos", "sample", "primers"]]
                 df.set_index("pos", inplace=True)
                 # print(df)
@@ -223,9 +223,9 @@ class MainWindow(QWidget):
         cols = range(1, 13)
         self.left_layout.addWidget(QLabel(""), 0, 0)  # Top-left empty corner
 
-        unique_primers = self.data["primers"].unique()
-        colormap = cm.get_cmap('tab20', len(unique_primers))
-        primer_to_color = {primer: to_hex(colormap(i)) for i, primer in enumerate(unique_primers)}
+        # unique_primers = self.data["primers"].unique()
+        # colormap = cm.get_cmap('tab20', len(unique_primers))
+        # primer_to_color = {primer: to_hex(colormap(i)) for i, primer in enumerate(unique_primers)}
 
         for j, col in enumerate(cols):
             col_label = QLabel(str(col))
@@ -236,11 +236,11 @@ class MainWindow(QWidget):
             row_label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
             self.left_layout.addWidget(row_label, i+1, 0)
             for j, col in enumerate(cols):
-                pos = f"{col}{row}"
+                pos = f"{row}{col}"
                 sample = self.data.loc[pos, "sample"]
                 primers = self.data.loc[pos, "primers"]
                 button = QPushButton(sample)
-                button.setStyleSheet(f"{self.button_style['default']} background-color: {primer_to_color[primers]};")
+                # button.setStyleSheet(f"{self.button_style['default']} background-color: {primer_to_color[primers]};")
                 button.setMinimumSize(10, 10)  # needed to let plate shrink
                 button.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
                 button.clicked.connect(lambda ch, p=pos: self.select_well(p))
